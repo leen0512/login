@@ -32,7 +32,7 @@ const LoginForm = ({ onLoginSuccess }: { onLoginSuccess: () => void }) => {
       ctx.fillStyle = 'rgba(232, 221, 211, 0.04)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      ctx.fillStyle = '#00ff41';
+      ctx.fillStyle = '#4fe174';
       ctx.font = `${fontSize}px monospace`;
 
       for (let i = 0; i < drops.length; i++) {
@@ -95,7 +95,7 @@ const LoginForm = ({ onLoginSuccess }: { onLoginSuccess: () => void }) => {
       left: 0,
       width: '100%',
       height: '100%',
-      opacity: 0.40,
+      opacity: 0.50,
       pointerEvents: 'none' as const,
       zIndex: 0
     },
