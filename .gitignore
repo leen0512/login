@@ -1,0 +1,7 @@
+# Environment files
+.env
+backend/.env
+
+# Python virtualenv
+venv/
+.venv/
