@@ -2,8 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import SessionLocal
 from models.user_model import User
+from passlib.context import CryptContext
+from jose import jwt
 
 router = APIRouter()
+SECRET_KEY = "mysecret"
+ALGORITHM = "HS256"
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def get_db():
     db = SessionLocal()
@@ -12,13 +18,13 @@ def get_db():
     finally:
         db.close()
 
-@router.get("/")
-def get_users(db: Session = Depends(get_db)):
-    return db.query(User).all()
+@router.post("/login")
+def login(email: str, password: str, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == email).first()
+    if not user or not pwd_context.verify(password, user.password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
 
-@router.get("/{user_id}")
-def get_user(user_id: int, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
+    access_token = jwt.encode({"email": user.email, "role": user.role}, SECRET_KEY, algorithm=ALGORITHM)
+    refresh_token = jwt.encode({"email": user.email}, SECRET_KEY, algorithm=ALGORITHM)
+
+    return {"access_token": access_token, "refresh_token": refresh_token, "role": user.role}
