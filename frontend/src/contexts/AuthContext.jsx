@@ -12,19 +12,22 @@ export const AuthProvider = ({ children }) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || "Login failed");
+      }
 
       const data = await res.json();
 
-      if (res.ok) {
-        localStorage.setItem("accessToken", data.access_token);
-        localStorage.setItem("refreshToken", data.refresh_token);
-        setUser({ email, role: data.role });
-      } else {
-        alert(data.detail);
-      }
+      localStorage.setItem("accessToken", data.access_token);
+      localStorage.setItem("refreshToken", data.refresh_token);
+      setUser({ email, role: data.role });
+
+      return true; // login הצליח
     } catch (err) {
       console.error(err);
-      alert("Server error");
+      alert(err.message);
+      return false;
     }
   };
 

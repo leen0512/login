@@ -8,8 +8,10 @@ const LoginForm = ({ onLoginSuccess }: { onLoginSuccess: () => void }) => {
   const [password, setPassword] = useState("");
 
   const handleLogin = async () => {
-    await login(email, password);
-    onLoginSuccess();
+    const success = await login(email, password);
+    if (success) {
+        onLoginSuccess();
+    }
   };
 
   return (
