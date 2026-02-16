@@ -1,13 +1,18 @@
-import { useState } from "react";
+import { useContext } from "react";
+import { AuthContext } from "../contexts/AuthContext";
 import LoginForm from "./LoginForm";
 
 const EscapeRoom = () => {
-  const [loggedIn, setLoggedIn] = useState(false);
+  const { user } = useContext(AuthContext);
 
   return (
     <div style={{ padding: "20px" }}>
-      {!loggedIn && <LoginForm onLoginSuccess={() => setLoggedIn(true)} />}
-      {loggedIn && <h2>ברוכה הבאה! 🎉</h2>}
+      {!user && <LoginForm onLoginSuccess={() => {}} />}
+      {user && (
+        <div>
+          <h2>ברוכה הבאה, {user.username}! 🎉</h2>
+        </div>
+      )}
     </div>
   );
 };
