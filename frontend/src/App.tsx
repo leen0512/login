@@ -1,31 +1,35 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider } from "./contexts/AuthContext";
 import Layout from "./components/Layout/Layout";
 import LoginForm from "./components/LoginForm";
 import EscapeRoom from "./components/EscapeRoom";
-import { AuthProvider } from "./contexts/AuthContext";
 
 function App() {
   return (
+    // 1️⃣  AuthProvider wraps everything — makes user/login/logout available everywhere
     <AuthProvider>
+
+      {/* 2️⃣  BrowserRouter enables URL-based navigation */}
       <BrowserRouter>
         <Routes>
-          {/* Redirect root to login */}
+
+          {/* / → redirect straight to /login */}
           <Route path="/" element={<Navigate to="/login" replace />} />
 
-          {/* Login — no layout wrapper (full-page) */}
-          <Route
-            path="/login"
-            element={<LoginForm onLoginSuccess={() => {}} />}
-          />
-          {/* Routes wrapped in shared Layout */}
+          {/* Full-page login (no navbar/layout) */}
+          <Route path="/login" element={<LoginForm onLoginSuccess={() => {}} />} />
+
+          {/* Pages that share the Layout (navbar etc.) */}
           <Route element={<Layout />}>
             <Route path="/escape-room" element={<EscapeRoom />} />
           </Route>
 
-          {/* 404 fallback */}
+          {/* Any unknown URL → back to login */}
           <Route path="*" element={<Navigate to="/login" replace />} />
+
         </Routes>
       </BrowserRouter>
+
     </AuthProvider>
   );
 }

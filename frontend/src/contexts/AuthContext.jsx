@@ -1,75 +1,60 @@
 import { createContext, useState, useEffect } from "react";
 
+// 1️⃣  Create the context — this is the "box" we share across the whole app
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
+  // 2️⃣  user = who is logged in  |  null = nobody
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ Restore user session on mount
+  // 3️⃣  On page refresh — check if a token is already saved in localStorage
   useEffect(() => {
-    const accessToken = localStorage.getItem("accessToken");
-    if (accessToken) {
-      // Decode the JWT to get user info (basic client-side only)
-      try {
-        const payload = JSON.parse(atob(accessToken.split('.')[1]));
-        setUser({
-          username: payload.username,
-          email: payload.email,
-          role: payload.role
-        });
-      } catch (err) {
-        console.error("Failed to restore session:", err);
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-      }
+    const token = localStorage.getItem("accessToken");
+
+    if (token) {
+      // JWT = header.payload.signature  →  decode the middle part
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      setUser({ username: payload.username, email: payload.email, role: payload.role });
     }
-    setLoading(false);
+
+    setLoading(false); // done checking — show the app
   }, []);
 
+  // 4️⃣  Login: call the server, save the tokens, update context
   const login = async (username, password) => {
-    try {
-      const res = await fetch(
-        `http://localhost:8000/users/login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-      
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.detail || "Login failed");
-      }
+    const res = await fetch(
+      `http://localhost:8000/users/login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
+      { method: "POST" }
+    );
 
-      const data = await res.json();
-
-      localStorage.setItem("accessToken", data.access_token);
-      localStorage.setItem("refreshToken", data.refresh_token);
-      setUser({ 
-        username: data.username, 
-        email: data.email, 
-        role: data.role 
-      });
-
-      return true;
-    } catch (err) {
-      console.error(err);
-      alert(err.message);
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.detail || "Login failed");
       return false;
     }
+
+    const data = await res.json();
+
+    // Save tokens so the user stays logged in after refresh
+    localStorage.setItem("accessToken", data.access_token);
+    localStorage.setItem("refreshToken", data.refresh_token);
+
+    // Update context → every component that uses useContext re-renders
+    setUser({ username: data.username, email: data.email, role: data.role });
+    return true;
   };
 
+  // 5️⃣  Logout: wipe tokens, set user back to null
   const logout = () => {
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
     setUser(null);
   };
 
-  if (loading) {
-    return <div>Loading...</div>; // Or a spinner component
-  }
+  if (loading) return <div>Loading...</div>;
 
+  // 6️⃣  Provide user, login, logout to the whole app
   return (
     <AuthContext.Provider value={{ user, login, logout }}>
       {children}

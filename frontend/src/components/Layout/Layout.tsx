@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import { useContext } from "react";
 import { AuthContext } from "../../contexts/AuthContext";
 import "./Layout.css";
@@ -16,16 +16,8 @@ export default function Layout() {
     <div className="layout">
       <header className="layout-header">
         <nav className="layout-nav">
-          <span className="layout-logo">🔐 EscapeApp</span>
+          <span className="layout-logo">Welcome 🧚🏻‍♀️</span>
           <div className="layout-links">
-            <NavLink
-              to="/escape-room"
-              className={({ isActive }) =>
-                isActive ? "nav-link active" : "nav-link"
-              }
-            >
-              Escape Room
-            </NavLink>
             <button className="nav-logout" onClick={handleLogout}>
               Logout
             </button>
