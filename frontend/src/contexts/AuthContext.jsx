@@ -36,9 +36,9 @@ export const AuthProvider = ({ children }) => {
 
     const data = await res.json();
 
-    // Save tokens so the user stays logged in after refresh
-    localStorage.setItem("accessToken", data.access_token);
-    localStorage.setItem("refreshToken", data.refresh_token);
+    // Save token so the user stays logged in after refresh
+    localStorage.setItem("accessToken", data.access_token);   
+    
 
     // Update context → every component that uses useContext re-renders
     setUser({ username: data.username, email: data.email, role: data.role });
@@ -48,7 +48,6 @@ export const AuthProvider = ({ children }) => {
   // 5️⃣  Logout: wipe tokens, set user back to null
   const logout = () => {
     localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
     setUser(null);
   };
 
