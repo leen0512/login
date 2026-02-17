@@ -1,483 +1,360 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useContext, useEffect, useRef } from "react";
 import { AuthContext } from "../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
-const LoginForm = ({ onLoginSuccess }: { onLoginSuccess: () => void }) => {
+// ─── Demo JWT token (split into 3 parts by ".") ───────────────────────────────
+const DEMO_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsIm5hbWUiOiJEZW1vVXNlciIsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjoxNzAwMDAzNjAwfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+
+// ─── Color palette (centralised so it's easy to change) ───────────────────────
+const C = {
+  bg: "#1a1f2e",
+  panel: "rgba(30,36,52,0.8)",
+  border: "rgba(255,255,255,0.07)",
+  text: "#c4cdd8",
+  textMuted: "rgba(148,165,185,0.5)",
+  header:  { base: "rgba(129,200,220,0.55)", lit: "rgba(129,200,220,1)",  bg: "rgba(129,200,220,0.06)", border: "rgba(129,200,220,0.25)" },
+  payload: { base: "rgba(180,160,100,0.55)", lit: "rgba(220,195,120,1)",  bg: "rgba(180,160,100,0.06)", border: "rgba(180,160,100,0.25)" },
+  sig:     { base: "rgba(180,120,120,0.55)", lit: "rgba(210,140,140,1)",  bg: "rgba(180,120,120,0.06)", border: "rgba(180,120,120,0.25)" },
+  flow: [
+    "rgba(110,185,210,0.7)",
+    "rgba(150,125,210,0.7)",
+    "rgba(185,165,90,0.7)",
+    "rgba(90,185,150,0.7)",
+    "rgba(205,120,80,0.7)",
+  ],
+};
+
+// ─── JWT segment data (label, decoded fields, explanation note) ────────────────
+const JWT_SEGMENTS = [
+  {
+    label: "Header",  sub: "alg + typ",
+    detail: [["alg", '"HS256"'], ["typ", '"JWT"']],
+    note: "Specifies which algorithm signs the token.",
+    c: C.header,
+  },
+  {
+    label: "Payload", sub: "user claims",
+    detail: [["sub", '"user_123"'], ["name", '"DemoUser"'], ["iat", "1700000000"], ["exp", "1700003600"]],
+    note: "⚠ Base64 encoded — not encrypted. Anyone can read this.",
+    c: C.payload,
+  },
+  {
+    label: "Signature", sub: "HMAC-SHA256",
+    detail: [["HMAC", 'base64(header) + "." + base64(payload)'], ["key", "SECRET_KEY"]],
+    note: "Tamper with the payload → signature breaks → server rejects.",
+    c: C.sig,
+  },
+];
+
+// ─── Auth flow steps shown in the right panel ─────────────────────────────────
+const FLOW_NODES = [
+  { label: "Login Form", sub: "React state",    icon: "⌨️" },
+  { label: "POST /login", sub: "HTTP Request",  icon: "→"  },
+  { label: "JWT Token",  sub: "Server response",icon: "🔑" },
+  { label: "Storage",    sub: "localStorage",   icon: "💾" },
+  { label: "useContext", sub: "Re-render!",      icon: "⚛️" },
+];
+
+// ─── Token comparison cards ────────────────────────────────────────────────────
+const TOKEN_CARDS = [
+  {
+    label: "Access Token",  dot: "rgba(110,185,210,0.5)",
+    lines: ["⏱ Short-lived (15 min)", "Sent with every API request"],
+    code: "memory / httpOnly cookie", codeColor: "rgba(110,185,210,0.5)",
+    bg: "rgba(110,185,210,0.03)", border: "rgba(110,185,210,0.09)",
+  },
+  {
+    label: "Refresh Token", dot: "rgba(180,160,100,0.5)",
+    lines: ["📅 Long-lived (7 days)", "Gets new access tokens"],
+    code: "httpOnly cookie only!", codeColor: "rgba(190,120,110,0.5)",
+    bg: "rgba(180,160,100,0.03)", border: "rgba(180,160,100,0.08)",
+  },
+];
+
+// ─── Component ────────────────────────────────────────────────────────────────
+const LoginForm = ({ onLoginSuccess }: { onLoginSuccess?: () => void }) => {
   const { login } = useContext(AuthContext) as any;
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const navigate = useNavigate();
 
+  // Form state
+  const [username, setUsername]         = useState("");
+  const [password, setPassword]         = useState("");
+  const [isLoading, setIsLoading]       = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+
+  // Right-panel visualiser state
+  const [flowStep, setFlowStep]           = useState(0);
+  const [activeSegment, setActiveSegment] = useState<number | null>(null);
+
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const jwtParts  = DEMO_JWT.split(".");
+
+  // ── Animated dot-grid background ──────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    const chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*()_+-=[]{}|;:,.<>?';
-    const fontSize = 16;
-    const columns = canvas.width / fontSize;
-    const drops: number[] = [];
-
-    for (let i = 0; i < columns; i++) {
-      drops[i] = Math.random() * -100;
-    }
-
+    const ctx = canvas.getContext("2d")!;
+    const resize = () => { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; };
+    resize();
+    window.addEventListener("resize", resize);
+    let t = 0, animId: number;
     const draw = () => {
-      ctx.fillStyle = 'rgba(232, 221, 211, 0.04)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      ctx.fillStyle = '#4fe174';
-      ctx.font = `${fontSize}px monospace`;
-
-      for (let i = 0; i < drops.length; i++) {
-        const text = chars[Math.floor(Math.random() * chars.length)];
-        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
-
-        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
-          drops[i] = 0;
+      t += 0.005;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const sp = 34;
+      for (let x = 0; x < canvas.width + sp; x += sp) {
+        for (let y = 0; y < canvas.height + sp; y += sp) {
+          const d = Math.sqrt((x - canvas.width / 2) ** 2 + (y - canvas.height / 2) ** 2);
+          const p = Math.sin(d * 0.022 - t * 1.6) * 0.5 + 0.5;
+          ctx.fillStyle = `rgba(110,140,180,${0.02 + p * 0.04})`;
+          ctx.beginPath(); ctx.arc(x, y, 1.2, 0, Math.PI * 2); ctx.fill();
         }
-        drops[i]++;
       }
+      animId = requestAnimationFrame(draw);
     };
-
-    const interval = setInterval(draw, 33);
-
-    const handleResize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
-
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('resize', handleResize);
-    };
+    draw();
+    return () => { cancelAnimationFrame(animId); window.removeEventListener("resize", resize); };
   }, []);
 
+  // ── Advance the flow diagram as the user types ─────────────────────────────
+  useEffect(() => { if (username.length === 1 && flowStep === 0) setFlowStep(1); }, [username]);
+  useEffect(() => { if (password.length === 1 && flowStep <= 1)  setFlowStep(2); }, [password]);
+
+  // ── Login handler ──────────────────────────────────────────────────────────
   const handleLogin = async () => {
     setIsLoading(true);
+    setFlowStep(3);
     try {
       await login(username, password);
-      onLoginSuccess();
+      setFlowStep(5);
+      setTimeout(() => { onLoginSuccess?.(); navigate("/escape-room"); }, 1200);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleLogin();
-    }
-  };
+  const handleKeyPress = (e: React.KeyboardEvent) => { if (e.key === "Enter") handleLogin(); };
 
-  const styles = {
-    container: {
-      minHeight: '100vh',
-      background: 'linear-gradient(165deg, #e8ddd3 0%, #f5ebe0 35%, #ddc5b5 100%)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '20px',
-      fontFamily: "'Cormorant Garamond', 'Georgia', serif",
-      position: 'relative' as const,
-      overflow: 'hidden'
-    },
-    matrixCanvas: {
-      position: 'absolute' as const,
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100%',
-      opacity: 0.50,
-      pointerEvents: 'none' as const,
-      zIndex: 0
-    },
-    backgroundLayer: {
-      position: 'absolute' as const,
-      inset: '0',
-      overflow: 'hidden',
-      pointerEvents: 'none' as const,
-      zIndex: 0
-    },
-    ornament: {
-      position: 'absolute' as const,
-      opacity: 0.08,
-      filter: 'blur(1px)'
-    },
-    botanicalShape: {
-      position: 'absolute' as const,
-      borderRadius: '50%',
-      filter: 'blur(80px)',
-      opacity: 0.3
-    },
-    shape1: {
-      width: '500px',
-      height: '500px',
-      background: 'radial-gradient(circle, #c79a8a 0%, transparent 70%)',
-      top: '-150px',
-      right: '-100px',
-      animation: 'drift 25s ease-in-out infinite'
-    },
-    shape2: {
-      width: '450px',
-      height: '450px',
-      background: 'radial-gradient(circle, #a67c6d 0%, transparent 70%)',
-      bottom: '-120px',
-      left: '-100px',
-      animation: 'drift 30s ease-in-out infinite reverse'
-    },
-    shape3: {
-      width: '350px',
-      height: '350px',
-      background: 'radial-gradient(circle, #d4a5a5 0%, transparent 70%)',
-      top: '45%',
-      right: '15%',
-      animation: 'drift 35s ease-in-out infinite'
-    },
-    card: {
-      background: 'rgba(255, 252, 249, 0.75)',
-      backdropFilter: 'blur(30px)',
-      border: '1px solid rgba(167, 124, 109, 0.15)',
-      borderRadius: '4px',
-      boxShadow: '0 32px 64px rgba(134, 101, 84, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.4)',
-      padding: '56px 48px',
-      width: '100%',
-      maxWidth: '420px',
-      position: 'relative' as const,
-      zIndex: 1
-    },
-    decorativeLine: {
-      position: 'absolute' as const,
-      height: '1px',
-      background: 'linear-gradient(90deg, transparent, rgba(167, 124, 109, 0.25), transparent)',
-      width: '100%',
-      top: '0',
-      left: '0'
-    },
-    header: {
-      textAlign: 'center' as const,
-      marginBottom: '48px',
-      position: 'relative' as const
-    },
-    iconContainer: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      width: '72px',
-      height: '72px',
-      background: 'linear-gradient(135deg, #a67c6d 0%, #8b6754 100%)',
-      borderRadius: '2px',
-      marginBottom: '28px',
-      boxShadow: '0 8px 24px rgba(134, 101, 84, 0.25)',
-      position: 'relative' as const
-    },
-    iconBorder: {
-      position: 'absolute' as const,
-      inset: '-8px',
-      border: '1px solid rgba(167, 124, 109, 0.15)',
-      borderRadius: '2px'
-    },
-    title: {
-      fontSize: '38px',
-      fontWeight: '600',
-      color: '#6b5447',
-      margin: '0 0 12px 0',
-      letterSpacing: '0.02em'
-    },
-    subtitle: {
-      fontSize: '15px',
-      color: '#8b7d72',
-      margin: '0',
-      fontWeight: '400',
-      letterSpacing: '0.03em',
-      fontFamily: "'Lato', sans-serif"
-    },
-    formGroup: {
-      marginBottom: '28px'
-    },
-    label: {
-      display: 'block',
-      fontSize: '12px',
-      fontWeight: '600',
-      color: '#8b7d72',
-      marginBottom: '12px',
-      letterSpacing: '0.08em',
-      textTransform: 'uppercase' as const,
-      fontFamily: "'Lato', sans-serif"
-    },
-    inputWrapper: {
-      position: 'relative' as const
-    },
-    inputIcon: {
-      position: 'absolute' as const,
-      left: '18px',
-      top: '50%',
-      transform: 'translateY(-50%)',
-      color: '#a67c6d',
-      pointerEvents: 'none' as const,
-      transition: 'all 0.3s ease',
-      opacity: 0.5
-    },
-    input: {
-      width: '100%',
-      padding: '16px 18px 16px 52px',
-      fontSize: '15px',
-      background: 'rgba(255, 255, 255, 0.5)',
-      color: '#4a3f37',
-      border: '1px solid rgba(167, 124, 109, 0.2)',
-      borderRadius: '2px',
-      outline: 'none',
-      transition: 'all 0.3s ease',
-      boxSizing: 'border-box' as const,
-      fontFamily: "'Lato', sans-serif",
-      letterSpacing: '0.01em'
-    },
-    button: {
-      width: '100%',
-      padding: '18px',
-      fontSize: '14px',
-      fontWeight: '600',
-      color: '#ffffff',
-      background: 'linear-gradient(135deg, #a67c6d 0%, #8b6754 100%)',
-      border: 'none',
-      borderRadius: '2px',
-      cursor: 'pointer',
-      transition: 'all 0.35s ease',
-      marginTop: '12px',
-      position: 'relative' as const,
-      letterSpacing: '0.1em',
-      textTransform: 'uppercase' as const,
-      boxShadow: '0 4px 16px rgba(134, 101, 84, 0.25)',
-      fontFamily: "'Lato', sans-serif"
-    },
-    buttonContent: {
-      position: 'relative' as const,
-      zIndex: 1,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center'
-    },
-    buttonDisabled: {
-      opacity: 0.5,
-      cursor: 'not-allowed'
-    },
-    footer: {
-      marginTop: '40px',
-      paddingTop: '28px',
-      borderTop: '1px solid rgba(167, 124, 109, 0.15)',
-      textAlign: 'center' as const
-    },
-    demoText: {
-      fontSize: '13px',
-      color: '#8b7d72',
-      margin: '0',
-      fontFamily: "'Lato', sans-serif",
-      letterSpacing: '0.02em'
-    },
-    demoUsername: {
-      fontFamily: "'Courier New', monospace",
-      color: '#a67c6d',
-      fontWeight: '600',
-      letterSpacing: '0'
-    },
-    courseText: {
-      textAlign: 'center' as const,
-      fontSize: '13px',
-      color: '#9c8c7f',
-      marginTop: '28px',
-      position: 'relative' as const,
-      zIndex: 1,
-      fontFamily: "'Lato', sans-serif",
-      letterSpacing: '0.03em'
-    },
-    spinner: {
-      display: 'inline-block',
-      width: '18px',
-      height: '18px',
-      border: '2.5px solid rgba(255,255,255,0.25)',
-      borderTop: '2.5px solid white',
-      borderRadius: '50%',
-      animation: 'spin 0.9s linear infinite',
-      marginRight: '10px'
-    }
-  };
-
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div style={styles.container}>
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", fontFamily:"'JetBrains Mono','Fira Code',monospace", position:"relative", overflow:"hidden" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Lato:wght@300;400;600;700&display=swap');
-        
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap');
+        *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+        @keyframes spin     { to { transform:rotate(360deg); } }
+        @keyframes fadeUp   { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes flowDot  { 0%{left:-8px;opacity:0;} 15%,85%{opacity:1;} 100%{left:calc(100% + 8px);opacity:0;} }
+        @keyframes revealBox{ from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes blink    { 0%,100%{opacity:1;} 50%{opacity:0;} }
+        .t-input {
+          width:100%; padding:11px 14px; font-size:14px;
+          background:rgba(255,255,255,0.04) !important; color:#c4cdd8 !important;
+          caret-color:rgba(110,185,210,0.8);
+          border:1px solid rgba(255,255,255,0.08) !important; border-radius:6px !important;
+          font-family:'JetBrains Mono',monospace !important; outline:none;
+          transition:border-color 0.25s, box-shadow 0.25s !important;
         }
-        @keyframes drift {
-          0%, 100% { 
-            transform: translate(0, 0) scale(1);
-          }
-          33% { 
-            transform: translate(30px, -50px) scale(1.05);
-          }
-          66% { 
-            transform: translate(-25px, 25px) scale(0.98);
-          }
+        .t-input::placeholder { color:rgba(255,255,255,0.15) !important; font-style:italic; }
+        .t-input:focus {
+          border-color:rgba(110,185,210,0.35) !important;
+          box-shadow:0 0 0 3px rgba(110,185,210,0.06) !important;
+          background:rgba(255,255,255,0.06) !important;
         }
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
+        .btn-main {
+          width:100%; padding:12px; border-radius:6px; cursor:pointer;
+          font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; letter-spacing:0.07em;
+          background:rgba(110,185,210,0.18); color:rgba(129,200,220,0.9);
+          border:1px solid rgba(110,185,210,0.2); transition:all 0.25s ease;
+          display:flex; align-items:center; justify-content:center; gap:8px;
         }
-        input:focus {
-          border-color: rgba(167, 124, 109, 0.4) !important;
-          box-shadow: 0 0 0 3px rgba(167, 124, 109, 0.08) !important;
-          background: rgba(255, 255, 255, 0.8) !important;
+        .btn-main:hover:not(:disabled) {
+          background:rgba(110,185,210,0.26); border-color:rgba(110,185,210,0.4);
+          color:rgba(170,220,235,1); transform:translateY(-1px);
+          box-shadow:0 4px 16px rgba(110,185,210,0.1);
         }
-        input:focus ~ div svg {
-          opacity: 0.8 !important;
-          color: #8b6754 !important;
-        }
-        button:hover:not(:disabled) {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 24px rgba(134, 101, 84, 0.35);
-          background: linear-gradient(135deg, #8b6754 0%, #a67c6d 100%);
-        }
-        button:active:not(:disabled) {
-          transform: translateY(0);
-        }
-        input::placeholder {
-          color: #bfb3a8;
-        }
-        @media (max-width: 640px) {
-          .botanical-shape {
-            filter: blur(60px) !important;
-          }
-        }
+        .btn-main:disabled { opacity:0.3; cursor:not-allowed; }
+        .jwt-chip { flex:1; padding:9px 12px; border-radius:6px; text-align:center; cursor:pointer; border:1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02); transition:all 0.2s ease; }
+        .jwt-chip:hover { background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,0.12); }
       `}</style>
-      
-      {/* Matrix-style falling characters */}
-      <canvas ref={canvasRef} style={styles.matrixCanvas} />
-      
-      {/* Background Elements */}
-      <div style={styles.backgroundLayer}>
-        <div style={{...styles.botanicalShape, ...styles.shape1}}></div>
-        <div style={{...styles.botanicalShape, ...styles.shape2}}></div>
-        <div style={{...styles.botanicalShape, ...styles.shape3}}></div>
-        
-        {/* Subtle botanical ornaments */}
-        <svg style={{...styles.ornament, top: '8%', right: '12%', width: '140px', height: '140px'}} viewBox="0 0 200 200">
-          <path d="M100,20 Q120,60 100,100 Q80,60 100,20" fill="#a67c6d" opacity="0.15"/>
-          <path d="M20,100 Q60,80 100,100 Q60,120 20,100" fill="#a67c6d" opacity="0.15"/>
-          <path d="M100,180 Q80,140 100,100 Q120,140 100,180" fill="#a67c6d" opacity="0.15"/>
-          <path d="M180,100 Q140,120 100,100 Q140,80 180,100" fill="#a67c6d" opacity="0.15"/>
-        </svg>
-        <svg style={{...styles.ornament, bottom: '12%', left: '10%', width: '120px', height: '120px'}} viewBox="0 0 200 200">
-          <circle cx="100" cy="100" r="40" fill="none" stroke="#8b6754" strokeWidth="1" opacity="0.2"/>
-          <circle cx="100" cy="100" r="60" fill="none" stroke="#8b6754" strokeWidth="1" opacity="0.15"/>
-          <circle cx="100" cy="100" r="80" fill="none" stroke="#8b6754" strokeWidth="1" opacity="0.1"/>
-        </svg>
+
+      {/* Background dot grid */}
+      <canvas ref={canvasRef} style={{ position:"fixed", inset:0, width:"100%", height:"100%", pointerEvents:"none", zIndex:0 }} />
+
+      {/* ══ LEFT PANEL — Login form ══════════════════════════════════════════ */}
+      <div style={{ width:"390px", minHeight:"100vh", flexShrink:0, background:"rgba(20,25,38,0.96)", borderRight:`1px solid ${C.border}`, display:"flex", flexDirection:"column", justifyContent:"center", padding:"44px 34px", position:"relative", zIndex:10, animation:"fadeUp 0.6s ease both" }}>
+        <div style={{ position:"absolute", top:0, left:0, right:0, height:"1px", background:"linear-gradient(90deg, transparent, rgba(110,185,210,0.3), rgba(150,125,210,0.25), transparent)" }} />
+
+        {/* Logo row */}
+        <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"28px" }}>
+          <div style={{ width:"34px", height:"34px", borderRadius:"7px", background:"rgba(110,185,210,0.12)", border:"1px solid rgba(110,185,210,0.2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"17px" }}>⚛</div>
+          <div>
+            <div style={{ fontSize:"12px", fontWeight:"600", color:"rgba(129,200,220,0.7)" }}>AuthContext Lab</div>
+            <div style={{ fontSize:"10px", color:"rgba(148,165,185,0.4)" }}>Workshop Demo · סדנה 2</div>
+          </div>
+          <span style={{ marginLeft:"auto", fontSize:"9px", color:"rgba(110,185,210,0.45)", background:"rgba(110,185,210,0.06)", border:"1px solid rgba(110,185,210,0.12)", borderRadius:"3px", padding:"2px 7px" }}>LIVE</span>
+        </div>
+
+        <h1 style={{ fontSize:"22px", fontWeight:"700", color:C.text, marginBottom:"4px" }}>Log In</h1>
+        <p style={{ fontFamily:"'Inter',sans-serif", fontSize:"12px", color:C.textMuted, marginBottom:"28px" }}>React Auth Context &amp; JWT</p>
+
+        {/* Username */}
+        <div style={{ marginBottom:"16px" }}>
+          <label style={{ display:"block", fontSize:"10px", letterSpacing:"0.1em", marginBottom:"6px", color: focusedField==="u" ? "rgba(110,185,210,0.6)" : "rgba(148,165,185,0.35)", transition:"color 0.25s" }}>// username</label>
+          <input className="t-input" type="text" placeholder="your-username"
+            value={username} onChange={e => setUsername(e.target.value)} onKeyPress={handleKeyPress}
+            onFocus={() => setFocusedField("u")} onBlur={() => setFocusedField(null)} />
+        </div>
+
+        {/* Password */}
+        <div style={{ marginBottom:"22px" }}>
+          <label style={{ display:"block", fontSize:"10px", letterSpacing:"0.1em", marginBottom:"6px", color: focusedField==="p" ? "rgba(110,185,210,0.6)" : "rgba(148,165,185,0.35)", transition:"color 0.25s" }}>// password</label>
+          <input className="t-input" type="password" placeholder="••••••••"
+            value={password} onChange={e => setPassword(e.target.value)} onKeyPress={handleKeyPress}
+            onFocus={() => setFocusedField("p")} onBlur={() => setFocusedField(null)}
+            style={{ letterSpacing:"0.1em" }} />
+          <p style={{ fontFamily:"'Inter',sans-serif", fontSize:"10px", color:"rgba(190,120,110,0.45)", marginTop:"5px" }}>⚠ Never hardcode passwords in source code</p>
+        </div>
+
+        {/* Submit */}
+        <button className="btn-main" onClick={handleLogin} disabled={isLoading || !username || !password}>
+          {isLoading
+            ? <><span style={{ width:"12px", height:"12px", border:"1.5px solid rgba(110,185,210,0.2)", borderTop:"1.5px solid rgba(110,185,210,0.8)", borderRadius:"50%", display:"inline-block", animation:"spin 0.7s linear infinite" }} />Authenticating...</>
+            : "→  POST /api/login"}
+        </button>
+
+        {/* Tip card */}
+        <div style={{ marginTop:"18px", padding:"12px 14px", background:"rgba(180,160,100,0.04)", border:"1px solid rgba(180,160,100,0.1)", borderRadius:"6px" }}>
+          <p style={{ fontFamily:"'Inter',sans-serif", fontSize:"11px", color:"rgba(175,155,100,0.5)", lineHeight:"1.7" }}>
+            <span style={{ color:"rgba(200,175,110,0.65)", fontWeight:"600" }}>💡 tip:</span> After login, open DevTools → Application → Local Storage, copy your token and paste it at{" "}
+            <a href="https://jwt.io" target="_blank" rel="noopener noreferrer" style={{ color:"rgba(110,185,210,0.6)", textDecoration:"none", borderBottom:"1px solid rgba(110,185,210,0.2)" }}>jwt.io</a>
+            {" "}— it's Base64, not encrypted!
+          </p>
+        </div>
+
+        <p style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:"10px", color:"rgba(148,165,185,0.18)", marginTop:"18px", textAlign:"center", fontStyle:"italic" }}>
+          <span style={{ animation:"blink 1.2s ease-in-out infinite", display:"inline-block" }}>_</span>{" "}type to activate flow →
+        </p>
       </div>
 
-      <div style={{ maxWidth: '420px', width: '100%', position: 'relative', zIndex: 1 }}>
-        <div style={styles.card}>
-          <div style={styles.decorativeLine}></div>
-          
-          {/* Header */}
-          <div style={styles.header}>
-            <div style={styles.iconContainer}>
-              <div style={styles.iconBorder}></div>
-              <svg style={{ width: '36px', height: '36px', color: 'white', position: 'relative', zIndex: 1 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-            <h2 style={styles.title}>Welcome Back</h2>
-            <p style={styles.subtitle}>Enter your credentials to continue</p>
+      {/* ══ RIGHT PANEL — Visualiser ═════════════════════════════════════════ */}
+      <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"center", padding:"36px 44px", position:"relative", zIndex:10, minWidth:0, overflowY:"auto" }}>
+
+        {/* Title */}
+        <div style={{ marginBottom:"24px", animation:"fadeUp 0.6s 0.08s ease both" }}>
+          <p style={{ fontSize:"10px", color:"rgba(148,165,185,0.3)", letterSpacing:"0.14em", marginBottom:"5px" }}>// auth flow visualizer</p>
+          <h2 style={{ fontSize:"17px", fontWeight:"700", color:C.text }}>From Login → Context Update</h2>
+          <p style={{ fontFamily:"'Inter',sans-serif", fontSize:"12px", color:"rgba(148,165,185,0.35)", marginTop:"4px" }}>Start typing — watch the flow light up</p>
+        </div>
+
+        {/* ── Flow diagram ─────────────────────────────────────────────────── */}
+        <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderRadius:"10px", padding:"20px 18px", marginBottom:"16px", animation:"fadeUp 0.6s 0.12s ease both" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"4px", overflowX:"auto", paddingBottom:"2px" }}>
+            {FLOW_NODES.map((node, i) => {
+              const active = flowStep > i;
+              const color  = C.flow[i];
+              return (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:"4px", flexShrink:0 }}>
+                  <div style={{ padding:"9px 12px", borderRadius:"7px", textAlign:"center", minWidth:"82px", transition:"all 0.5s ease", background: active ? color.replace("0.7","0.08") : "rgba(255,255,255,0.02)", border:`1px solid ${active ? color.replace("0.7","0.35") : "rgba(255,255,255,0.05)"}` }}>
+                    <div style={{ fontSize:"16px", lineHeight:1, marginBottom:"4px" }}>{node.icon}</div>
+                    <div style={{ fontSize:"10px", fontWeight:"600", color: active ? color : "rgba(255,255,255,0.18)", transition:"color 0.5s" }}>{node.label}</div>
+                    <div style={{ fontFamily:"'Inter',sans-serif", fontSize:"9px", color: active ? color.replace("0.7","0.45") : "rgba(255,255,255,0.1)", marginTop:"1px", transition:"color 0.5s" }}>{node.sub}</div>
+                    {active && <div style={{ width:"5px", height:"5px", borderRadius:"50%", background:color, margin:"5px auto 0", boxShadow:`0 0 6px ${color}` }} />}
+                  </div>
+                  {i < FLOW_NODES.length - 1 && (
+                    <div style={{ width:"18px", height:"1px", position:"relative", background: flowStep > i ? color.replace("0.7","0.4") : "rgba(255,255,255,0.07)", overflow:"hidden", flexShrink:0, transition:"background 0.5s" }}>
+                      {flowStep > i && <div style={{ position:"absolute", top:"-1px", width:"6px", height:"3px", background:"rgba(255,255,255,0.7)", borderRadius:"2px", animation:"flowDot 1.4s ease-in-out infinite" }} />}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-
-          {/* Username Input */}
-          <div style={styles.formGroup}>
-            <label htmlFor="username" style={styles.label}>
-              Username
-            </label>
-            <div style={styles.inputWrapper}>
-              <input
-                id="username"
-                type="text"
-                placeholder="your-username"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                onKeyPress={handleKeyPress}
-                style={styles.input}
-              />
-              <div style={styles.inputIcon}>
-                <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          {/* Password Input */}
-          <div style={styles.formGroup}>
-            <label htmlFor="password" style={styles.label}>
-              Password
-            </label>
-            <div style={styles.inputWrapper}>
-              <input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                onKeyPress={handleKeyPress}
-                style={styles.input}
-              />
-              <div style={styles.inputIcon}>
-                <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          {/* Login Button */}
-          <button
-            onClick={handleLogin}
-            disabled={isLoading || !username || !password}
-            style={{
-              ...styles.button,
-              ...(isLoading || !username || !password ? styles.buttonDisabled : {})
-            }}
-          >
-            <div style={styles.buttonContent}>
-              {isLoading ? (
-                <>
-                  <span style={styles.spinner}></span>
-                  Signing in...
-                </>
-              ) : (
-                "Sign In"
-              )}
-            </div>
-          </button>
-
-          {/* Footer */}
-          <div style={styles.footer}>
-            <p style={styles.demoText}>
-              Demo credentials: <span style={styles.demoUsername}>demo@example.com</span>
+          <div style={{ marginTop:"14px", paddingTop:"14px", borderTop:`1px solid ${C.border}` }}>
+            <p style={{ fontFamily:"'Inter',sans-serif", fontSize:"11px", color:"rgba(148,165,185,0.38)", lineHeight:"1.7" }}>
+              <span style={{ color:"rgba(205,145,90,0.6)" }}>⚛ useContext</span> isn't just a global variable — it triggers a{" "}
+              <strong style={{ color:"rgba(148,165,185,0.6)", fontWeight:"600" }}>re-render of every subscribed component</strong>{" "}
+              the moment the context value changes.
             </p>
           </div>
         </div>
 
-        {/* Course Info */}
-        <p style={styles.courseText}>
-          Authentication Context Demo • Course Presentation
-        </p>
+        {/* ── JWT anatomy ──────────────────────────────────────────────────── */}
+        <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderRadius:"10px", padding:"20px 18px", marginBottom:"16px", animation:"fadeUp 0.6s 0.16s ease both" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"12px" }}>
+            <span style={{ fontSize:"10px", color:"rgba(148,165,185,0.3)", letterSpacing:"0.12em" }}>// jwt anatomy — click each segment</span>
+            <a href="https://jwt.io" target="_blank" rel="noopener noreferrer" style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:"10px", color:"rgba(110,185,210,0.5)", textDecoration:"none", background:"rgba(110,185,210,0.06)", border:"1px solid rgba(110,185,210,0.15)", borderRadius:"4px", padding:"2px 9px" }}>↗ jwt.io</a>
+          </div>
+
+          {/* Token string — 3 coloured clickable parts */}
+          <div style={{ padding:"11px 13px", background:"rgba(0,0,0,0.2)", borderRadius:"6px", border:`1px solid ${C.border}`, marginBottom:"10px", fontSize:"11px", wordBreak:"break-all", lineHeight:"1.8", userSelect:"text" }}>
+            {jwtParts.map((part, i) => {
+              const seg      = JWT_SEGMENTS[i];
+              const isActive = activeSegment === i;
+              return (
+                <span key={i}>
+                  <span onClick={() => setActiveSegment(isActive ? null : i)}
+                    style={{ color: isActive ? seg.c.lit : seg.c.base, background: isActive ? seg.c.bg : "transparent", borderRadius:"3px", padding:"1px 2px", cursor:"pointer", transition:"color 0.2s, background 0.2s", textDecoration: isActive ? "underline" : "none", textDecorationColor: seg.c.lit, textUnderlineOffset:"3px" }}>
+                    {part}
+                  </span>
+                  {i < 2 && <span style={{ color:"rgba(255,255,255,0.12)" }}>.</span>}
+                </span>
+              );
+            })}
+          </div>
+
+          {/* Chips — hover to preview, click to lock */}
+          <div style={{ display:"flex", gap:"8px" }}>
+            {JWT_SEGMENTS.map((seg, i) => {
+              const isActive = activeSegment === i;
+              return (
+                <div key={i} className="jwt-chip"
+                  onClick={()     => setActiveSegment(isActive ? null : i)}
+                  onMouseEnter={() => { if (activeSegment === null) setActiveSegment(i); }}
+                  onMouseLeave={() => { if (activeSegment === i)    setActiveSegment(null); }}
+                  style={{ background: isActive ? seg.c.bg : "rgba(255,255,255,0.02)", border:`1px solid ${isActive ? seg.c.border : "rgba(255,255,255,0.06)"}`, transition:"all 0.2s ease" }}>
+                  <div style={{ fontSize:"10px", fontWeight:"600", letterSpacing:"0.04em", color: isActive ? seg.c.lit : seg.c.base, transition:"color 0.2s" }}>{seg.label}</div>
+                  <div style={{ fontFamily:"'Inter',sans-serif", fontSize:"9px", color:"rgba(148,165,185,0.3)", marginTop:"2px" }}>{seg.sub}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Decoded detail panel */}
+          {activeSegment !== null && (
+            <div style={{ marginTop:"10px", padding:"12px 14px", background: JWT_SEGMENTS[activeSegment].c.bg, border:`1px solid ${JWT_SEGMENTS[activeSegment].c.border}`, borderRadius:"6px", animation:"revealBox 0.2s ease both" }}>
+              <p style={{ fontSize:"10px", color: JWT_SEGMENTS[activeSegment].c.base, marginBottom:"8px", letterSpacing:"0.08em" }}>
+                // decoded {JWT_SEGMENTS[activeSegment].label.toLowerCase()}
+              </p>
+              {JWT_SEGMENTS[activeSegment].detail.map(([k, v]) => (
+                <div key={k} style={{ display:"flex", gap:"14px", lineHeight:"1.9" }}>
+                  <span style={{ fontSize:"11px", color: JWT_SEGMENTS[activeSegment].c.base, minWidth:"50px" }}>{k}:</span>
+                  <span style={{ fontSize:"11px", color:"rgba(180,195,210,0.55)" }}>{v}</span>
+                </div>
+              ))}
+              <p style={{ fontFamily:"'Inter',sans-serif", fontSize:"10px", color:"rgba(190,155,110,0.5)", marginTop:"8px", lineHeight:"1.5" }}>
+                {JWT_SEGMENTS[activeSegment].note}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* ── Access vs Refresh token cards ────────────────────────────────── */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px", animation:"fadeUp 0.6s 0.2s ease both" }}>
+          {TOKEN_CARDS.map(t => (
+            <div key={t.label} style={{ padding:"14px", background:t.bg, border:`1px solid ${t.border}`, borderRadius:"8px" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"8px" }}>
+                <div style={{ width:"6px", height:"6px", borderRadius:"50%", background:t.dot }} />
+                <span style={{ fontSize:"11px", fontWeight:"600", color:t.dot }}>{t.label}</span>
+              </div>
+              <p style={{ fontFamily:"'Inter',sans-serif", fontSize:"11px", color:"rgba(148,165,185,0.38)", lineHeight:"1.8" }}>
+                {t.lines[0]}<br />{t.lines[1]}<br />
+                <code style={{ color:t.codeColor, fontFamily:"'JetBrains Mono',monospace", fontSize:"10px" }}>{t.code}</code>
+              </p>
+            </div>
+          ))}
+        </div>
+
       </div>
     </div>
   );
