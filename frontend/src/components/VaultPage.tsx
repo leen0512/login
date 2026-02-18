@@ -1,5 +1,3 @@
-// 🚩 תחנה 2 — VaultPage.jsx
-
 import { useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../contexts/AuthContext";
@@ -16,6 +14,10 @@ export default function VaultPage() {
   const handleRefreshTest = () => {
     navigate("/");
     window.location.reload();
+  };
+  const handleDone = () => {
+    localStorage.setItem("station2Done", "true");
+    navigate("/escape-room");
   };
 
   return (
@@ -44,18 +46,14 @@ export default function VaultPage() {
               </p>
             </div>
 
-            {/* כפתור הבאג */}
-            <button
-              onClick={handleRefreshTest}
-              style={{ width: "100%", padding: "13px", background: "rgba(255,190,0,0.07)", border: "1px solid rgba(255,190,0,0.25)", borderRadius: "10px", color: "rgba(255,210,0,0.85)", fontFamily: "'JetBrains Mono',monospace", fontSize: "12px", fontWeight: "600", cursor: "pointer", marginBottom: "10px" }}
-            >
+            <button onClick={handleRefreshTest} style={{ width: "100%", padding: "13px", background: "rgba(255,190,0,0.07)", border: "1px solid rgba(255,190,0,0.25)", borderRadius: "10px", color: "rgba(255,210,0,0.85)", fontFamily: "'JetBrains Mono',monospace", fontSize: "12px", fontWeight: "600", cursor: "pointer", marginBottom: "10px" }}>
               🔄 רעני את הדף — מה יקרה?
             </button>
 
-            <button
-              onClick={logout}
-              style={{ width: "100%", padding: "12px", background: "rgba(255,100,100,0.06)", border: "1px solid rgba(255,100,100,0.15)", borderRadius: "10px", color: "rgba(255,120,120,0.7)", fontFamily: "'JetBrains Mono',monospace", fontSize: "12px", fontWeight: "600", cursor: "pointer" }}
-            >
+            <button onClick={handleDone} style={{ width: "100%", padding: "13px", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.3)", borderRadius: "10px", color: "rgba(52,211,153,0.9)", fontFamily: "'JetBrains Mono',monospace", fontSize: "12px", fontWeight: "600", cursor: "pointer", marginBottom: "10px" }}>
+              ✅ תיקנתי את הבאג — לפרס!
+            </button>
+            <button onClick={logout} style={{ width: "100%", padding: "12px", background: "rgba(255,100,100,0.06)", border: "1px solid rgba(255,100,100,0.15)", borderRadius: "10px", color: "rgba(255,120,120,0.7)", fontFamily: "'JetBrains Mono',monospace", fontSize: "12px", fontWeight: "600", cursor: "pointer" }}>
               התנתקי
             </button>
           </div>
