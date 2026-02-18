@@ -1,14 +1,26 @@
-import { createContext, useState, useEffect } from "react";
-export const AuthContext = createContext();
+import { createContext, useState, useEffect, type ReactNode } from "react";
 
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+interface User {
+  username: string;
+  email: string;
+  role: string;
+}
+
+interface AuthContextType {
+  user: User | null;
+  login: (username: string, password: string) => Promise<boolean>;
+  logout: () => void;
+}
+
+export const AuthContext = createContext<AuthContextType>({} as AuthContextType);
+
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     if (!token) { setLoading(false); return; }
-
     fetch("http://localhost:8000/users/protected", {
       headers: { Authorization: `Bearer ${token}` }
     })
@@ -21,20 +33,18 @@ export const AuthProvider = ({ children }) => {
       .finally(() => setLoading(false));
   }, []);
 
-  const login = async (username, password) => {
+  const login = async (username: string, password: string): Promise<boolean> => {
     try {
       const res = await fetch("http://localhost:8000/users/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
-
-    if (!res.ok) {
-      const err = await res.json();
-      alert(err.detail || "Login failed");
-      return false;
-    }
-
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.detail || "Login failed");
+        return false;
+      }
       const data = await res.json();
       setUser({ username: data.username, email: data.email, role: data.role });
       localStorage.setItem("accessToken", data.access_token);
