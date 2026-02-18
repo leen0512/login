@@ -377,10 +377,14 @@ const EscapeRoom = () => {
             </div>
 
             {/* CTA buttons */}
-            <div style={{ display: "flex", gap: "12px", justifyContent: "center", animation: "fadeUp 0.6s 0.38s ease both" }}>
-              <button className="badge-btn" onClick={() => navigate("/game")}
+            <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", animation: "fadeUp 0.6s 0.38s ease both" }}>            
+              <button className="badge-btn" onClick={() => navigate("/dashboard")}
                 style={{ padding: "12px 22px", fontSize: "12px", fontWeight: "600", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em", color: isQueen ? "#0d0a1a" : "#0c1120", background: isQueen ? "linear-gradient(135deg, rgba(167,139,250,0.85), rgba(124,90,240,0.75))" : "linear-gradient(135deg, rgba(97,218,251,0.75), rgba(58,184,216,0.75))", border: "none", borderRadius: "6px", cursor: "pointer", boxShadow: isQueen ? "0 4px 18px rgba(167,139,250,0.2)" : "0 4px 18px rgba(97,218,251,0.12)" }}>
-                ← Back to Login
+                🕵️ תחנה 1 — useContext
+              </button>
+              <button className="badge-btn" onClick={() => navigate("/vault")}
+                style={{ padding: "12px 22px", fontSize: "12px", fontWeight: "600", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em", color: isQueen ? "#a78bfa" : "#61dafb", background: isQueen ? "rgba(167,139,250,0.06)" : "rgba(97,218,251,0.06)", border: `1px solid ${isQueen ? "rgba(167,139,250,0.2)" : "rgba(97,218,251,0.2)"}`, borderRadius: "6px", cursor: "pointer" }}>
+                🔒 תחנה 2 — localStorage
               </button>
               <a href="https://jwt.io" target="_blank" rel="noopener noreferrer" className="badge-btn"
                 style={{ padding: "12px 22px", fontSize: "12px", fontWeight: "600", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.06em", color: isQueen ? "#a78bfa" : "#61dafb", background: isQueen ? "rgba(167,139,250,0.06)" : "rgba(97,218,251,0.06)", border: `1px solid ${isQueen ? "rgba(167,139,250,0.2)" : "rgba(97,218,251,0.2)"}`, borderRadius: "6px", cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}>
