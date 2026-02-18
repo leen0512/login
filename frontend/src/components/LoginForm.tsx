@@ -108,6 +108,21 @@ const TOKEN_CARDS = [
   },
 ];
 
+// ─── Eye icons ────────────────────────────────────────────────────────────────
+const EyeIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+);
+
+const EyeOffIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+    <line x1="1" y1="1" x2="23" y2="23"/>
+  </svg>
+);
+
 // ─── Component ────────────────────────────────────────────────────────────────
 const LoginForm = ({ onLoginSuccess }: { onLoginSuccess?: () => void }) => {
   const { login } = useContext(AuthContext) as any;
@@ -118,6 +133,7 @@ const LoginForm = ({ onLoginSuccess }: { onLoginSuccess?: () => void }) => {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false); // ← NEW
 
   // Right-panel visualiser state
   const [flowStep, setFlowStep] = useState(0);
@@ -230,6 +246,7 @@ const LoginForm = ({ onLoginSuccess }: { onLoginSuccess?: () => void }) => {
           box-shadow:0 0 0 3px rgba(110,185,210,0.06) !important;
           background:rgba(255,255,255,0.06) !important;
         }
+        .t-input-pw { padding-right:40px !important; }
         .btn-main {
           width:100%; padding:12px; border-radius:6px; cursor:pointer;
           font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; letter-spacing:0.07em;
@@ -245,6 +262,14 @@ const LoginForm = ({ onLoginSuccess }: { onLoginSuccess?: () => void }) => {
         .btn-main:disabled { opacity:0.3; cursor:not-allowed; }
         .jwt-chip { flex:1; padding:9px 12px; border-radius:6px; text-align:center; cursor:pointer; border:1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02); transition:all 0.2s ease; }
         .jwt-chip:hover { background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,0.12); }
+        .eye-btn {
+          position:absolute; right:10px; top:50%; transform:translateY(-50%);
+          background:none; border:none; cursor:pointer; padding:4px;
+          color:rgba(148,165,185,0.35); display:flex; align-items:center;
+          transition:color 0.2s ease;
+          border-radius:4px;
+        }
+        .eye-btn:hover { color:rgba(110,185,210,0.7); }
       `}</style>
 
       {/* Background dot grid */}
@@ -392,7 +417,7 @@ const LoginForm = ({ onLoginSuccess }: { onLoginSuccess?: () => void }) => {
           />
         </div>
 
-        {/* Password */}
+        {/* Password — with show/hide toggle */}
         <div style={{ marginBottom: "22px" }}>
           <label
             style={{
@@ -409,17 +434,29 @@ const LoginForm = ({ onLoginSuccess }: { onLoginSuccess?: () => void }) => {
           >
             // password
           </label>
-          <input
-            className="t-input"
-            type="password"
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyPress={handleKeyPress}
-            onFocus={() => setFocusedField("p")}
-            onBlur={() => setFocusedField(null)}
-            style={{ letterSpacing: "0.1em" }}
-          />
+          {/* ── wrapper makes eye button easy to position ── */}
+          <div style={{ position: "relative" }}>
+            <input
+              className="t-input t-input-pw"
+              type={showPassword ? "text" : "password"}
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyPress={handleKeyPress}
+              onFocus={() => setFocusedField("p")}
+              onBlur={() => setFocusedField(null)}
+              style={{ letterSpacing: showPassword ? "normal" : "0.1em" }}
+            />
+            <button
+              type="button"
+              className="eye-btn"
+              onClick={() => setShowPassword((v) => !v)}
+              tabIndex={-1}
+              title={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+            </button>
+          </div>
           <p
             style={{
               fontFamily: "'Inter',sans-serif",
