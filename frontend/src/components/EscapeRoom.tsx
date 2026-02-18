@@ -18,7 +18,7 @@ const EscapeRoom = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const username = (user as any)?.username ?? "";
-  const isQueen = username === "asyncAwaitQueen" || username === "DebugDiva";
+  const isQueen = username === "asyncAwaitQueen" || username === "debugDiva";
 
   useEffect(() => {
     if (user) {
