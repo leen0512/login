@@ -36,7 +36,6 @@ export const AuthProvider = ({ children }) => {
     }
 
       const data = await res.json();
-      localStorage.setItem("accessToken", data.access_token);
       setUser({ username: data.username, email: data.email, role: data.role });
       return true;
     } catch (error) {
@@ -48,6 +47,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem("accessToken");
+    localStorage.removeItem("station2Done");
     setUser(null);
   };
 
