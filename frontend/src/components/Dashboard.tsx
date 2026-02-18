@@ -6,6 +6,8 @@ export default function Dashboard() {
         margin: "0 auto",
         padding: "3rem 1.5rem",
         color: "var(--text-primary)",
+        direction: "rtl", 
+        textAlign: "right",
       }}
     >
       <p
@@ -43,7 +45,7 @@ export default function Dashboard() {
         <br />
         המערכת אמורה להציג <strong>אותו משתמש</strong> בכולן.
         <br />
-        עברי בין Welcome, Profile ו-Vault דרך הניווט למעלה.
+        עברי בין Welcome, Profile דרך הניווט למעלה.
       </p>
 
       <div

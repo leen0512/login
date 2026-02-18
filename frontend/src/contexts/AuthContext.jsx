@@ -37,6 +37,7 @@ export const AuthProvider = ({ children }) => {
 
       const data = await res.json();
       setUser({ username: data.username, email: data.email, role: data.role });
+      localStorage.setItem("accessToken", data.access_token);
       return true;
     } catch (error) {
       console.error("Login error:", error);
